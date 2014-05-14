@@ -73,6 +73,32 @@ options:
         that can be used.'
     required: false
     default: null
+  user_account:
+    description:
+      - The default administrator account created as part of the zone configuration. 
+    required: false
+    default: null
+  user_password:
+    description:
+      - The password hash for the administrator account. If not specified, the user's account
+        will not have a password.
+    required: false
+    default: null
+  solaris_timezone:
+    description:
+      - The timezone that the zone should put itself in.
+    required: false
+    default: US/Central
+  solaris_environment:
+    description:
+      - The language page that the zone should operate in.
+    required: false
+    default: en_US.UTF-8
+  solaris_keymap:
+    description:
+      - The keyboard map that the zone should use.
+    required: false
+    default: US-English
   timeout:
     description:
       - Timeout, in seconds, for zone to boot.
@@ -244,6 +270,11 @@ class Zone(object):
             elapsed += 10
 
     def destroy(self):
+        cmd = '%s -z %s uninstall' % (self.zoneadm_cmd, self.name)
+        (rc, out, err) = self.module.run_command(cmd)
+        if rc != 0:
+            self.module.fail_json(msg='Failed to uninstall zone. %s' % (out + err))
+
         cmd = '%s -z %s delete -F' % (self.zonecfg_cmd, self.name)
         (rc, out, err) = self.module.run_command(cmd)
         if rc != 0:
