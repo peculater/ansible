@@ -1,4 +1,4 @@
-# (c) 2013, Michael DeHaan <michael.dehaan@gmail.com>
+# (c) 2013-2014, Michael DeHaan <michael.dehaan@gmail.com>
 #
 # This file is part of Ansible
 #
@@ -28,7 +28,6 @@ from ansible import constants as C
 
 REPLACER = "#<<INCLUDE_ANSIBLE_MODULE_COMMON>>"
 REPLACER_ARGS = "\"<<INCLUDE_ANSIBLE_MODULE_ARGS>>\""
-REPLACER_LANG = "\"<<INCLUDE_ANSIBLE_MODULE_LANG>>\""
 REPLACER_COMPLEX = "\"<<INCLUDE_ANSIBLE_MODULE_COMPLEX_ARGS>>\""
 
 class ModuleReplacer(object):
@@ -84,7 +83,7 @@ class ModuleReplacer(object):
         module_style = 'old'
         if REPLACER in module_data:
             module_style = 'new'
-        elif 'from ansible.snippets.' in module_data:
+        elif 'from ansible.module_utils.' in module_data:
             module_style = 'new'
         elif 'WANT_JSON' in module_data:
             module_style = 'non_native_want_json'
@@ -95,7 +94,7 @@ class ModuleReplacer(object):
 
         for line in lines:
 
-            if line.find(REPLACER) != -1:
+            if REPLACER in line:
                 output.write(self.slurp(os.path.join(self.snippet_path, "basic.py")))
                 snippet_names.append('basic')
             elif line.startswith('from ansible.module_utils.'):
@@ -103,7 +102,7 @@ class ModuleReplacer(object):
                 import_error = False
                 if len(tokens) != 3:
                     import_error = True
-                if line.find(" import *") == -1:
+                if " import *" not in line:
                     import_error = True
                 if import_error:
                     raise errors.AnsibleError("error importing module in %s, expecting format like 'from ansible.module_utils.basic import *'" % module_path)
@@ -136,13 +135,14 @@ class ModuleReplacer(object):
             complex_args_json = utils.jsonify(complex_args)
             # We force conversion of module_args to str because module_common calls shlex.split,
             # a standard library function that incorrectly handles Unicode input before Python 2.7.3.
-            encoded_args = repr(module_args.encode('utf-8'))
-            encoded_lang = repr(C.DEFAULT_MODULE_LANG)
+            try:
+                encoded_args = repr(module_args.encode('utf-8'))
+            except UnicodeDecodeError:
+                encoded_args = repr(module_args)
             encoded_complex = repr(complex_args_json)
 
             # these strings should be part of the 'basic' snippet which is required to be included
             module_data = module_data.replace(REPLACER_ARGS, encoded_args)
-            module_data = module_data.replace(REPLACER_LANG, encoded_lang)
             module_data = module_data.replace(REPLACER_COMPLEX, encoded_complex)
 
             if module_style == 'new':
@@ -150,7 +150,6 @@ class ModuleReplacer(object):
                 if 'ansible_syslog_facility' in inject:
                     facility = inject['ansible_syslog_facility']
                 module_data = module_data.replace('syslog.LOG_USER', "syslog.%s" % facility)
-
 
             lines = module_data.split("\n")
             shebang = None

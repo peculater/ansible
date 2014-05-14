@@ -3,6 +3,8 @@
 Inventory
 =========
 
+.. contents:: Topics
+
 Ansible works against multiple systems in your infrastructure at the
 same time.  It does this by selecting portions of systems listed in
 Ansible's inventory file, which defaults to being saved in 
@@ -11,9 +13,6 @@ the location /etc/ansible/hosts.
 Not only is this inventory configurable, but you can also use
 multiple inventory files at the same time (explained below) and also
 pull inventory from dynamic or cloud sources, as described in :doc:`intro_dynamic_inventory`.
-
-.. contents::
-   :depth: 2
 
 .. _inventoryformat:
 
@@ -36,9 +35,14 @@ The format for /etc/ansible/hosts is an INI format and looks like this::
 The things in brackets are group names, which are used in classifying systems
 and deciding what systems you are controlling at what times and for what purpose.
 
+It is ok to put systems in more than one group, for instance a server could be both a webserver and a dbserver.  
+If you do, note that variables will come from all of the groups they are a member of, and variable precedence is detailed in a later chapter.
+
 If you have hosts that run on non-standard SSH ports you can put the port number
-after the hostname with a colon.  Ports listed in your SSH config file won't be used,
-so it is important that you set them if things are not running on the default port::
+after the hostname with a colon.  Ports listed in your SSH config file won't be used with the paramiko
+connection but will be used with the openssh connection.
+
+To make things explicit, it is suggested that you set them if things are not running on the default port::
 
     badwolf.example.com:5309
 
@@ -140,7 +144,7 @@ Splitting Out Host and Group Specific Data
 
 The preferred practice in Ansible is actually not to store variables in the main inventory file.
 
-In addition to the storing variables directly in the INI file, host
+In addition to storing variables directly in the INI file, host
 and group variables can be stored in individual files relative to the
 inventory file.  
 
@@ -191,11 +195,13 @@ mentioned::
     ansible_ssh_pass
       The ssh password to use (this is insecure, we strongly recommend using --ask-pass or SSH keys)
     ansible_sudo_pass
-      The sudo password to use (this is insecure, we strongly recommend using --ask-pass or SSH keys)
+      The sudo password to use (this is insecure, we strongly recommend using --ask-sudo-pass)
     ansible_connection
       Connection type of the host. Candidates are local, ssh or paramiko.  The default is paramiko before Ansible 1.2, and 'smart' afterwards which detects whether usage of 'ssh' would be feasible based on whether ControlPersist is supported.
     ansible_ssh_private_key_file
       Private key file used by ssh.  Useful if using multiple keys and you don't want to use SSH agent.
+    ansible_shell_type
+      The shell type of the target system. By default commands are formatted using 'sh'-style syntax by default. Setting this to 'csh' or 'fish' will cause commands executed on target systems to follow those shell's syntax instead.
     ansible_python_interpreter
       The target host python path. This is useful for systems with more
       than one Python or not located at "/usr/bin/python" such as \*BSD, or where /usr/bin/python

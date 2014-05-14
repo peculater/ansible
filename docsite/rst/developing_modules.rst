@@ -1,6 +1,8 @@
 Developing Modules
 ==================
 
+.. contents:: Topics
+
 Ansible modules are reusable units of magic that can be used by the Ansible API,
 or by the `ansible` or `ansible-playbook` programs.
 
@@ -12,9 +14,6 @@ by `ANSIBLE_LIBRARY` or the ``--module-path`` command line option.
 Should you develop an interesting Ansible module, consider sending a pull request to the
 `github project <http://github.com/ansible/ansible>`_ to see about getting your module
 included in the core project.
-
-.. contents::
-   :depth: 2
 
 .. _module_dev_tutorial:
 
@@ -92,7 +91,7 @@ The example usage we are trying to achieve to set the time is::
 
 If no time parameter is set, we'll just leave the time as is and return the current time.
 
-.. note:
+.. note::
    This is obviously an unrealistic idea for a module.  You'd most likely just
    use the shell module.  However, it probably makes a decent tutorial.
 
@@ -124,7 +123,7 @@ a lot shorter than this::
     for arg in arguments:
 
         # ignore any arguments without an equals in it
-        if arg.find("=") != -1:
+        if "=" in arg:
 
             (key, value) = arg.split("=")
 
@@ -229,8 +228,7 @@ The 'group' and 'user' modules are reasonably non-trivial and showcase what this
 
 Key parts include always ending the module file with::
 
-    # include magic from lib/ansible/module_common.py
-    #<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+    from ansible.module_utils.basic import *
     main()
 
 And instantiating the module class like::
@@ -332,7 +330,7 @@ and guidelines:
 
 * Include a minimum of dependencies if possible.  If there are dependencies, document them at the top of the module file, and have the module raise JSON error messages when the import fails.
 
-* Modules must be self contained in one file to be auto-transferred by ansible.
+* Modules must be self-contained in one file to be auto-transferred by ansible.
 
 * If packaging modules in an RPM, they only need to be installed on the control machine and should be dropped into /usr/share/ansible.  This is entirely optional and up to you.
 
@@ -340,7 +338,7 @@ and guidelines:
 
 * In the event of failure, a key of 'failed' should be included, along with a string explanation in 'msg'.  Modules that raise tracebacks (stacktraces) are generally considered 'poor' modules, though Ansible can deal with these returns and will automatically convert anything unparseable into a failed result.  If you are using the AnsibleModule common Python code, the 'failed' element will be included for you automatically when you call 'fail_json'.
 
-* Return codes from modules are not actually not signficant, but continue on with 0=success and non-zero=failure for reasons of future proofing.
+* Return codes from modules are not actually not significant, but continue on with 0=success and non-zero=failure for reasons of future proofing.
 
 * As results from many hosts will be aggregated at once, modules should return only relevant output.  Returning the entire contents of a log file is generally bad form.
 
@@ -375,10 +373,7 @@ syntax highlighting before you include it in your Python file.
 Example
 +++++++
 
-To print a basic documentation string, run ``./hacking/module_formatter.py -G``. 
-
-You can copy it into your module and use it as a starting point 
-when writing your own docs.
+See an example documentation string in the checkout under `examples/DOCUMENTATION.yml <https://github.com/ansible/ansible/blob/devel/examples/DOCUMENTATION.yml>`_.
 
 Include it in your module file like this::
 
@@ -392,8 +387,9 @@ Include it in your module file like this::
     # ... snip ...
     '''
 
-The ``description``, and ``notes`` 
-support formatting in some of the output formats (e.g. ``rst``, ``man``).
+The ``description``, and ``notes`` fields 
+support formatting with some special macros.  
+
 These formatting functions are ``U()``, ``M()``, ``I()``, and ``C()``
 for URL, module, italic, and constant-width respectively. It is suggested
 to use ``C()`` for file and option names, and ``I()`` when referencing
@@ -408,9 +404,8 @@ like this::
     - action: modulename opt1=arg1 opt2=arg2
     '''
 
-The ``module_formatter.py`` script and ``ansible-doc(1)`` append the
-``EXAMPLES`` blob after any existing (deprecated) ``examples`` you may have in the
-YAML ``DOCUMENTATION`` string.
+The EXAMPLES section, just like the documentation section, is required in
+all module pull requests for new modules.
 
 .. _module_dev_testing:
 
@@ -420,23 +415,6 @@ Building & Testing
 Put your completed module file into the 'library' directory and then
 run the command: ``make webdocs``. The new 'modules.html' file will be
 built and appear in the 'docsite/' directory.
-
-You can also test-build your docs one-by-one using the
-``module_formatter.py`` script:
-
-.. code-block:: bash
-
-   $ ./hacking/module_formatter.py -t man -M library/ -m git > ansible-git.1
-   $ man ./ansible-git.1
-
-This will build a manpage for the git module, and look in the
-'library/' directory for the module source. To see all the other
-output formats available:
-
-.. code-block:: bash
-
-   $ ./hacking/module_formatter.py -t --help
-
 
 .. tip::
 

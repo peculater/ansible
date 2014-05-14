@@ -1,12 +1,11 @@
 Delegation, Rolling Updates, and Local Actions
 ==============================================
 
-.. contents::
-   :depth: 2
+.. contents:: Topics
 
 Being designed for multi-tier deployments since the beginning, Ansible is great at doing things on one host on behalf of another, or doing local steps with reference to some remote hosts.
 
-This in particular this is very applicable when setting up continuous deployment infrastructure or zero downtime rolling updates, where you might be talking with load balancers or monitoring systems.
+This in particular is very applicable when setting up continuous deployment infrastructure or zero downtime rolling updates, where you might be talking with load balancers or monitoring systems.
 
 Additional features allow for tuning the orders in which things complete, and assigning a batch window size for how many machines to process at once during a rolling update.
 
@@ -72,10 +71,12 @@ outage windows.  Using this with the 'serial' keyword to control the number of h
 a good idea::
 
     ---
+
     - hosts: webservers
       serial: 5
 
       tasks:
+
       - name: take out of load balancer pool
         command: /usr/bin/take_out_of_pool {{ inventory_hostname }}
         delegate_to: 127.0.0.1
@@ -88,13 +89,14 @@ a good idea::
         delegate_to: 127.0.0.1
 
 
-These commands will run on 127.0.0.1, which is the machine running Ansible. There is also a shorthand syntax that
-you can use on a per-task basis: 'local_action'. Here is the same playbook as above, but using the shorthand
-syntax for delegating to 127.0.0.1::
+These commands will run on 127.0.0.1, which is the machine running Ansible. There is also a shorthand syntax that you can use on a per-task basis: 'local_action'. Here is the same playbook as above, but using the shorthand syntax for delegating to 127.0.0.1::
 
     ---
+
     # ...
+
       tasks:
+
       - name: take out of load balancer pool
         local_action: command /usr/bin/take_out_of_pool {{ inventory_hostname }}
 
@@ -109,6 +111,7 @@ Here is an example::
     ---
     # ...
       tasks:
+
       - name: recursively copy files from management server to target
         local_action: command rsync -a /path/to/files {{ inventory_hostname }}:/path/to/target/
 
@@ -122,7 +125,7 @@ Local Playbooks
 
 It may be useful to use a playbook locally, rather than by connecting over SSH.  This can be useful
 for assuring the configuration of a system by putting a playbook on a crontab.  This may also be used
-to run a playbook inside a OS installer, such as an Anaconda kickstart.
+to run a playbook inside an OS installer, such as an Anaconda kickstart.
 
 To run an entire playbook locally, just set the "hosts:" line to "hosts:127.0.0.1" and then run the playbook like so::
 
