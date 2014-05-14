@@ -272,7 +272,7 @@ class Zone(object):
             elapsed += 10
 
     def destroy(self):
-        cmd = '%s -z %s uninstall' % (self.zoneadm_cmd, self.name)
+        cmd = '%s -z %s uninstall -F' % (self.zoneadm_cmd, self.name)
         (rc, out, err) = self.module.run_command(cmd)
         if rc != 0:
             self.module.fail_json(msg='Failed to uninstall zone. %s' % (out + err))
