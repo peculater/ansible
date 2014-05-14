@@ -109,11 +109,13 @@ options:
 EXAMPLES = '''
 # Create a zone, but don't boot it
 zone: name=zone1 state=present path=/zones/zone1 whole_root=true root_password="Be9oX7OSwWoU."
-      config='set autoboot=true, add net, set physical=bge0, set address=10.1.1.1, end'
+      config='set autoboot=true, add net, set physical=bge0, set address=10.1.1.1, end' 
+      user_account=joeuser user_password="Be9oX7OSwWoU."
 
 # Create a zone and boot it
 zone: name=zone1 state=running path=/zones/zone1 whole_root=true root_password="Be9oX7OSwWoU."
       config='set autoboot=true, add net, set physical=bge0, set address=10.1.1.1, end'
+      user_account=joeuser user_password="Be9oX7OSwWoU." 
 
 # Boot an already created zone
 zone: name=zone1 state=running
