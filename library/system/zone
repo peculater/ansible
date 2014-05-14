@@ -101,24 +101,99 @@ zone: name=zone1 state=absent
 
 class Zone(object):
     def __init__(self, module):
-        self.module         = module
-        self.path           = self.module.params['path']
-        self.name           = self.module.params['name']
-        self.whole_root     = self.module.params['whole_root']
-        self.root_password  = self.module.params['root_password']
-        self.timeout        = self.module.params['timeout']
-        self.config         = self.module.params['config']
+        self.module                = module
+        self.path                  = self.module.params['path']
+        self.name                  = self.module.params['name']
+        self.whole_root            = self.module.params['whole_root']
+        self.timeout               = self.module.params['timeout']
+        self.config                = self.module.params['config']
 
-        self.zoneadm_cmd    = self.module.get_bin_path('zoneadm', True)
-        self.zonecfg_cmd    = self.module.get_bin_path('zonecfg', True)
-        self.ssh_keygen_cmd = self.module.get_bin_path('ssh-keygen', True)
+        self.zoneadm_cmd           = self.module.get_bin_path('zoneadm', True)
+        self.zonecfg_cmd           = self.module.get_bin_path('zonecfg', True)
+        self.ssh_keygen_cmd        = self.module.get_bin_path('ssh-keygen', True)
+        
+        self.root_password         = self.module.params['root_password']
+        self.user_account          = self.module.params['user_account']
+        self.user_password         = self.module.params['user_password']
+        self.solaris_timezone      = self.module.params['solaris_timezone']
+        self.solaris_environment   = self.module.params['solaris_environment']
+        self.solaris_keymap        = self.module.params['solaris_keymap']
+ 
 
     def create(self):
         if not self.path:
             self.module.fail_json(msg='Missing required argument: path')
 
         t = tempfile.NamedTemporaryFile(delete = False)
-
+        configxml = tempfile.NamedTemporaryFile(delete = False, suffix = ".xml")
+        configxml.write("""<!DOCTYPE service_bundle SYSTEM "/usr/share/lib/xml/dtd/service_bundle.dtd.1">
+<service_bundle type="profile" name="sysconfig">
+  <service version="1" type="service" name="system/config-user">
+    <instance enabled="true" name="default">
+      <property_group type="application" name="root_account">
+        <propval type="astring" name="login" value="root"/>
+        <propval type="astring" name="password" value="%s"/>
+        <propval type="astring" name="type" value="role"/>
+      </property_group>
+      <property_group type="application" name="user_account">
+        <propval type="astring" name="login" value="%s"/>
+        <propval type="astring" name="password" value="%s"/>
+        <propval type="astring" name="type" value="normal"/>
+        <propval type="astring" name="description" value=""/>
+        <propval type="count" name="gid" value="10"/>
+        <propval type="astring" name="shell" value="/usr/bin/bash"/>
+        <propval type="astring" name="roles" value="root"/>
+        <propval type="astring" name="profiles" value="System Administrator"/>
+        <propval type="astring" name="sudoers" value="ALL=(ALL) ALL"/>
+      </property_group>
+    </instance>
+  </service>
+  <service version="1" type="service" name="system/timezone">
+    <instance enabled="true" name="default">
+      <property_group type="application" name="timezone">
+        <propval type="astring" name="localtime" value="%s"/>
+      </property_group>
+    </instance>
+  </service>
+  <service version="1" type="service" name="system/environment">
+    <instance enabled="true" name="init">
+      <property_group type="application" name="environment">
+        <propval type="astring" name="LANG" value="%s"/>
+      </property_group>
+    </instance>
+  </service>
+  <service version="1" type="service" name="system/identity">
+    <instance enabled="true" name="node">
+      <property_group type="application" name="config">
+        <propval type="astring" name="nodename" value="%s"/>
+      </property_group>
+    </instance>
+  </service>
+  <service version="1" type="service" name="system/keymap">
+    <instance enabled="true" name="default">
+      <property_group type="system" name="keymap">
+        <propval type="astring" name="layout" value="%s"/>
+      </property_group>
+    </instance>
+  </service>
+  <service version="1" type="service" name="system/console-login">
+    <instance enabled="true" name="default">
+      <property_group type="application" name="ttymon">
+        <propval type="astring" name="terminal_type" value="sun-color"/>
+      </property_group>
+    </instance>
+  </service>
+  <service version="1" type="service" name="network/physical">
+    <instance enabled="true" name="default">
+      <property_group type="application" name="netcfg">
+        <propval type="astring" name="active_ncp" value="Automatic"/>
+      </property_group>
+    </instance>
+  </service>
+</service_bundle>
+""" % (self.root_password, self.user_account, self.user_password, self.solaris_timezone, self.solaris_environment, self.name, self.solaris_keymap))
+        configxml.close()      
+  
         if self.whole_root:
             t.write('create -b\n')
         else:
@@ -137,75 +212,11 @@ class Zone(object):
             self.module.fail_json(msg='Failed to create zone. %s' % (out + err))
         os.unlink(t.name)
 
-        cmd = '%s -z %s install' % (self.zoneadm_cmd, self.name)
+        cmd = '%s -z %s install -c %s' % (self.zoneadm_cmd, self.name, configxml.name)
         (rc, out, err) = self.module.run_command(cmd)
         if rc != 0:
             self.module.fail_json(msg='Failed to install zone. %s' % (out + err))
 
-        self.configure_sysid()
-        self.configure_password()
-        self.configure_ssh_keys()
-
-    def configure_sysid(self):
-        try:
-            os.unlink('%s/root/etc/.UNCONFIGURED' % self.path)
-        except OSError:
-            pass
-
-        open('%s/root/noautoshutdown' % self.path, 'w').close()
-
-        node = open('%s/root/etc/nodename' % self.path, 'w')
-        node.write(self.name)
-        node.close
-
-        id = open('%s/root/etc/.sysIDtool.state' % self.path, 'w')
-        id.write('1       # System previously configured?\n')
-        id.write('1       # Bootparams succeeded?\n')
-        id.write('1       # System is on a network?\n')
-        id.write('1       # Extended network information gathered?\n')
-        id.write('0       # Autobinder succeeded?\n')
-        id.write('1       # Network has subnets?\n')
-        id.write('1       # root password prompted for?\n')
-        id.write('1       # locale and term prompted for?\n')
-        id.write('1       # security policy in place\n')
-        id.write('1       # NFSv4 domain configured\n')
-        id.write('0       # Auto Registration Configured\n')
-        id.write('vt100')
-        id.close()
-
-    def configure_ssh_keys(self):
-        rsa_key_file = '%s/root/etc/ssh/ssh_host_rsa_key' % self.path
-        dsa_key_file = '%s/root/etc/ssh/ssh_host_dsa_key' % self.path
-
-        if not os.path.isfile(rsa_key_file):
-            cmd = '%s -f %s -t rsa -N ""' % (self.ssh_keygen_cmd, rsa_key_file)
-            (rc, out, err) = self.module.run_command(cmd)
-            if rc != 0:
-                self.module.fail_json(msg='Failed to create rsa key. %s' % (out + err))
-
-        if not os.path.isfile(dsa_key_file):
-            cmd = '%s -f %s -t dsa -N ""' % (self.ssh_keygen_cmd, dsa_key_file)
-            (rc, out, err) = self.module.run_command(cmd)
-            if rc != 0:
-                self.module.fail_json(msg='Failed to create dsa key. %s' % (out + err))
-
-    def configure_password(self):
-        shadow = '%s/root/etc/shadow' % self.path
-        if self.root_password:
-            f = open(shadow, 'r')
-            lines = f.readlines()
-            f.close()
-
-            for i in range(0, len(lines)):     
-                fields = lines[i].split(':')   
-                if fields[0] == 'root':
-                    fields[1] = self.root_password 
-                    lines[i] = ':'.join(fields)
-
-            f = open(shadow, 'w')
-            for line in lines:
-                f.write(line)              
-            f.close()
             
     def boot(self):
         cmd = '%s -z %s boot' % (self.zoneadm_cmd, self.name)
@@ -224,7 +235,9 @@ class Zone(object):
         while True:
             if elapsed > self.timeout:
                 self.module.fail_json(msg='timed out waiting for zone to boot')
-            rc = os.system('ps -z %s -o args|grep "/usr/lib/saf/ttymon.*-d /dev/console" > /dev/null 2>/dev/null' % self.name)
+            rc = os.system('ps -z %s -o args|grep "/.*/ttymon.*-d /dev/console" > /dev/null 2>/dev/null' % self.name)
+            if elapsed > 40:
+                break
             if rc == 0:
                 break
             time.sleep(10)
@@ -264,13 +277,18 @@ class Zone(object):
 def main():
     module = AnsibleModule(
         argument_spec     = dict(
-            name          = dict(required=True),
-            state         = dict(required=True, choices=['running', 'present', 'stopped', 'absent']),
-            path          = dict(defalt=None),
-            whole_root    = dict(default=False, type='bool'),
-            root_password = dict(default=None),
-            timeout       = dict(default=600, type='int'),
-            config        = dict(default=None, type='list'),
+            name                = dict(required=True),
+            state               = dict(required=True, choices=['running', 'present', 'stopped', 'absent']),
+            path                = dict(defalt=None),
+            whole_root          = dict(default=False, type='bool'),
+            root_password       = dict(default=None),
+            timeout             = dict(default=600, type='int'),
+            config              = dict(default=None, type='list'),
+            user_account        = dict(default=None),
+            user_password       = dict(default=None),
+            solaris_timezone    = dict(default='US/Central'),
+            solaris_environment = dict(default='en_US.UTF-8'),
+            solaris_keymap      = dict(default='US-English'),
             ),
         supports_check_mode=True
     )
